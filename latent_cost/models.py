@@ -91,7 +91,11 @@ class HFRunner:
         inputs = self.tokenizer(prompt_text, return_tensors="pt").to(
             self.device)
         prompt_tokens = inputs["input_ids"].shape[1]
-        gen = torch.Generator(device=self.device).manual_seed(seed)
+        # transformers v5 removed the per-call `generator` kwarg from
+        # generate(); seed the global RNG per attempt instead.
+        # Attempts run sequentially, so draws stay reproducible per
+        # (task, seed).
+        torch.manual_seed(seed)
         t0 = time.perf_counter()
         with torch.no_grad():
             out = self.model.generate(
@@ -100,7 +104,6 @@ class HFRunner:
                 do_sample=True,
                 temperature=temperature,
                 top_p=top_p,
-                generator=gen,
                 pad_token_id=self.tokenizer.eos_token_id)
         latency = time.perf_counter() - t0
         new_ids = out[0][prompt_tokens:]

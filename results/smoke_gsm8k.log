@@ -1,0 +1,27 @@
+Using the latest cached version of the dataset since openai/gsm8k couldn't be found on the Hugging Face Hub (offline mode is enabled).
+Found the latest cached dataset configuration 'main' at /home/hatch/.cache/huggingface/datasets/openai___gsm8k/main/0.0.0/740312add88f781978c0658806c59bc2815b9866 (last modified on Fri Oct 16 23:28:59 2026).
+loaded 20 gsm8k tasks (test)
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Loading weights:   6%|▌         | 16/290 [00:00<00:01, 150.84it/s]Loading weights:  13%|█▎        | 38/290 [00:00<00:01, 175.60it/s]Loading weights:  19%|█▉        | 56/290 [00:00<00:01, 174.03it/s]Loading weights:  28%|██▊       | 80/290 [00:00<00:01, 191.85it/s]Loading weights:  39%|███▊      | 112/290 [00:00<00:00, 207.87it/s]Loading weights:  46%|████▌     | 133/290 [00:00<00:00, 205.21it/s]Loading weights:  60%|█████▉    | 173/290 [00:00<00:00, 258.09it/s]Loading weights:  69%|██████▊   | 199/290 [00:00<00:00, 235.06it/s]Loading weights:  78%|███████▊  | 226/290 [00:01<00:00, 201.81it/s]Loading weights:  86%|████████▌ | 248/290 [00:01<00:00, 197.70it/s]Loading weights: 100%|██████████| 290/290 [00:01<00:00, 223.73it/s]
+runner: Qwen/Qwen2.5-0.5B-Instruct; params: 494,032,768
+Traceback (most recent call last):
+  File "/home/hatch/workspace/latent-agent-cost/scripts/run_baseline.py", line 87, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/hatch/workspace/latent-agent-cost/scripts/run_baseline.py", line 71, in main
+    attempts = run_condition(tasks, runner=runner,
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hatch/workspace/latent-agent-cost/latent_cost/harness.py", line 62, in run_condition
+    g: Generation = runner.generate(
+                    ^^^^^^^^^^^^^^^^
+  File "/home/hatch/workspace/latent-agent-cost/latent_cost/models.py", line 97, in generate
+    out = self.model.generate(
+          ^^^^^^^^^^^^^^^^^^^^
+  File "/home/hatch/workspace/latent-agent-cost/.venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hatch/workspace/latent-agent-cost/.venv/lib/python3.12/site-packages/transformers/generation/utils.py", line 2791, in generate
+    self._validate_model_kwargs(model_kwargs.copy())
+  File "/home/hatch/workspace/latent-agent-cost/.venv/lib/python3.12/site-packages/transformers/generation/utils.py", line 1951, in _validate_model_kwargs
+    raise ValueError(
+ValueError: The following `model_kwargs` are not used by the model: ['generator'] (note: typos in the generate arguments will also show up in this list)
