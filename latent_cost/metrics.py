@@ -277,16 +277,29 @@ def attempt_from_tokenecon_record(record: dict, *,
     ``tokenecon`` (the published toolkit this costing layer extends)
     accounts a run in token streams -- prompt, completion, tool-call
     and retrieval tokens -- with a priced total. This adapter accepts
-    a plain ``dict`` in that shape (``prompt_tokens`` /
-    ``input_tokens``, ``completion_tokens`` / ``output_tokens``, and
-    optionally ``cost_usd`` / ``total_cost``) so logs priced by
-    tokenecon can be re-aggregated under the five-metric model
-    without re-pricing.
+    either a ``tokenecon.CallRecord`` (or any object with the same
+    attributes) or a plain ``dict`` in that shape (``prompt_tokens``
+    / ``input_tokens``, ``completion_tokens`` / ``output_tokens``,
+    and optionally ``cost_usd`` / ``total_cost`` / ``cost``), so
+    logs priced by tokenecon can be re-aggregated under the
+    five-metric model without re-pricing.
     """
+    if not isinstance(record, dict):
+        cost_attr = getattr(record, "cost", None)
+        if callable(cost_attr):  # tokenecon.CallRecord.cost is a method
+            cost_attr = cost_attr()
+        record = {
+            "task_id": getattr(record, "task_id", "unknown"),
+            "prompt_tokens": getattr(record, "prompt_tokens", 0),
+            "completion_tokens": getattr(record, "completion_tokens", 0),
+            "cost_usd": cost_attr,
+            "latent_steps": getattr(record, "latent_steps", 0),
+        }
     prompt = record.get("prompt_tokens", record.get("input_tokens", 0))
     completion = record.get("completion_tokens",
                             record.get("output_tokens", 0))
-    cost = record.get("cost_usd", record.get("total_cost"))
+    cost = record.get("cost_usd",
+                      record.get("total_cost", record.get("cost")))
     return AttemptLog(
         task_id=str(record.get("task_id", record.get("id", "unknown"))),
         dataset=dataset,

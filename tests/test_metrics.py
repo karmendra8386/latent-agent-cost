@@ -124,6 +124,24 @@ def test_tokenecon_record_adapter():
     assert r.usd_per_solve == pytest.approx(0.25)
 
 
+def test_tokenecon_callrecord_object_adapter():
+    """Interop with the real published tokenecon package."""
+    tokenecon = pytest.importorskip("tokenecon")
+    tier = tokenecon.ModelTier(
+        name="test-tier", input_per_mtok=10.0, output_per_mtok=20.0,
+        capability=0.5)
+    rec = tokenecon.CallRecord(tier=tier, prompt_tokens=1_000_000,
+                               completion_tokens=500_000)
+    # hand-computed: 1e6 * 10/1e6 + 5e5 * 20/1e6 = 10 + 10 = 20 USD
+    assert rec.cost() == pytest.approx(20.0)
+    a = attempt_from_tokenecon_record(rec, dataset="gsm8k",
+                                      condition="explicit_cot", seed=0,
+                                      latency_s=1.0, solved=True)
+    assert a.prompt_tokens == 1_000_000
+    assert a.completion_tokens == 500_000
+    assert a.cost_usd == pytest.approx(20.0)
+
+
 def test_attempt_jsonl_round_trip():
     a = att(solved=True, steps=[StepLog(kind="final_answer",
                                         trace_text="#### 5")])
