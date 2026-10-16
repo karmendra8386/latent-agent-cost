@@ -13,6 +13,10 @@ import hashlib
 import time
 from dataclasses import dataclass
 
+from .netenv import sanitize_proxy_env
+
+sanitize_proxy_env()
+
 
 @dataclass
 class Generation:

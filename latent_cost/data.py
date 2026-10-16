@@ -32,6 +32,10 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from .netenv import sanitize_proxy_env
+
+sanitize_proxy_env()
+
 CACHE_DIR = Path.home() / ".cache" / "latent-agent-cost"
 
 PROSQA_URLS = {
@@ -88,11 +92,20 @@ def load_prosqa(split: str = "test", limit: int | None = None) -> list[Task]:
     rows = _fetch_prosqa(split)
     tasks = []
     for i, row in enumerate(rows):
-        idx_to_symbol = row.get("idx_to_symbol") or {}
-        target = idx_to_symbol.get(str(row.get("target")),
-                                   idx_to_symbol.get(row.get("target")))
-        neg = idx_to_symbol.get(str(row.get("neg_target")),
-                                idx_to_symbol.get(row.get("neg_target")))
+        idx_to_symbol = row.get("idx_to_symbol") or []
+
+        def _symbol(idx):
+            if idx is None:
+                return None
+            if isinstance(idx_to_symbol, dict):
+                return idx_to_symbol.get(str(idx)) or idx_to_symbol.get(idx)
+            try:
+                return idx_to_symbol[int(idx)]
+            except (ValueError, IndexError):
+                return None
+
+        target = _symbol(row.get("target"))
+        neg = _symbol(row.get("neg_target"))
         tasks.append(Task(task_id=f"prosqa-{split}-{i}",
                           dataset="prosqa",
                           question=row["question"].strip(),
