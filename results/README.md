@@ -27,3 +27,52 @@ labeled SMOKE in their titles.
   items x seeds {0, 1} = 20 attempts. ProsQA loaded from the
   canonical Coconut authors' distribution
   (facebookresearch/coconut, data/prosqa_test.json; 500 items).
+
+## week1_gsm8k + week1_prosqa (2026-10-16/17, Kaggle T4 x2)
+
+- Command (per dataset): `scripts/run_baseline.py --dataset {gsm8k,prosqa}
+  --n 500 --seeds 0 1 2 --model Qwen/Qwen2.5-1.5B-Instruct
+  --device cuda --dtype float16 --label WEEK1`
+- Runtime: 27,062.6s total (GSM8K stage 13,808s; ProsQA 13,245s).
+- GSM8K: 1500 attempts, 687 solves, accuracy 0.458, usd/solve 0.0001,
+  latency median 9.93s, FLOPs/solve 2.274e12, tokens/solve 501.5,
+  auditability 1.00.
+- ProsQA: 1500 attempts, 216 solves, accuracy 0.144, usd/solve 0.0004,
+  latency median 9.64s, FLOPs/solve 1.289e13, tokens/solve 1614.0,
+  auditability 1.00.
+- $ figures use the flat stated rate $0.10/1M tokens (carried over from
+  the smoke price card; label bug — see below). Re-priced at analysis
+  time per the outline.
+- DIAGNOSIS (2026-10-17, from the attempts logs): ProsQA 0.144 is a
+  harness artifact, NOT a model result. Of 1,284 failures: 972 (75.7%)
+  truncated at the 256-token cap; 284 (22.1%) contained the target
+  concept in the full text but not in the extracted final line; 27
+  (2.1%) killed by the verifier's both-concepts rule; 1 (0.1%) never
+  reached the target concept. GSM8K capped rate was also 51.1% (its
+  verifier's last-number fallback rescues many truncations).
+- Known label bugs in these artifacts: the .md headings say
+  "(pipeline validation, not a result)" and the price card says
+  "(smoke)" — hardcoded strings, fixed in the harness after this run.
+- ACTION: protocol fix (max_new_tokens 256 -> 768; shared prompt gains
+  an explicit "#### <answer>" final-line instruction; label bugs fixed),
+  then BOTH baselines rerun under the corrected protocol before Week 2.
+
+## smoke2_prosqa (2026-10-17, protocol-fix validation)
+
+- Command: `scripts/run_baseline.py --dataset prosqa --n 10 --seeds 0
+  --model Qwen/Qwen2.5-0.5B-Instruct --label SMOKE` under the FIXED
+  protocol (cap 768, "Finish with a final line in the form: #### ..."
+  closing instruction, label fixes). CPU, this VM; pipeline
+  validation only -- accuracy on 10 items is not a finding.
+- Truncation: 0 of 10 attempts hit the 768 cap (completion lengths
+  140-518 tokens, all terminated naturally), vs 3 of 10 seed-0
+  attempts capped at 256 in smoke_prosqa above. The cap fix works.
+- Format: 3 of 10 completions contain a `####` line; 1 ends with a
+  textbook `#### Alex is a zhorpus.` Most others end with a
+  "Final answer: ..." line instead -- at 0.5B the marker instruction
+  is only partly followed. Extraction no longer loses these (the
+  last-line fallback reads them cleanly); the remaining failures are
+  wrong-concept answers, not truncation/extraction losses. Marker
+  compliance at the baseline's 1.5B scale is for the Kaggle rerun
+  to show.
+- Files: `smoke2_prosqa.md` / `.csv` / `.attempts.jsonl` / `.log`.

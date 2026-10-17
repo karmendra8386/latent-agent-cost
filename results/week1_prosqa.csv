@@ -1,0 +1,2 @@
+dataset,condition,model,attempts,solves,accuracy,usd_per_solve,latency_per_solve_median_s,latency_per_solve_iqr_s,flops_per_solve,tokens_per_solve,total_tokens_per_solve,auditability,price_card_label
+prosqa,explicit_cot,Qwen/Qwen2.5-1.5B-Instruct,1500,216,0.144,0.0004176481481481482,9.635323133999918,1.0993031912512379,12894588406708.148,1614.023148148148,4176.481481481482,1.0,flat stated rate $0.10/1M tokens (smoke)
