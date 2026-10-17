@@ -41,6 +41,11 @@ def main() -> int:
     ap.add_argument("--n", type=int, default=20)
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
     ap.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
+    ap.add_argument("--device", default="cpu",
+                    help="torch device for the HF runner (cpu, cuda)")
+    ap.add_argument("--dtype", default="bfloat16",
+                    help="model dtype for the HF runner "
+                         "(bfloat16, float16, float32)")
     ap.add_argument("--mock", action="store_true",
                     help="use the canned-CoT mock runner")
     ap.add_argument("--max-new-tokens", type=int, default=256)
@@ -60,7 +65,8 @@ def main() -> int:
                          n_params=n_params)
         _ = m
     else:
-        runner = HFRunner(args.model)
+        runner = HFRunner(args.model, dtype=args.dtype,
+                          device=args.device)
         spec = ModelSpec(name=args.model, n_params=runner.n_params())
     print(f"runner: {runner.name}; params: {spec.n_params:,}")
 
