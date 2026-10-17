@@ -61,3 +61,27 @@ Notes:
   `dist/latent-agent-cost.zip` (repo snapshot, no `.venv`/`.git`) as
   a Kaggle dataset, attach it to the notebook, and replace the clone
   cell with an unzip of the dataset copy into the working directory.
+
+## Week 2 — staged plan
+
+The full Week-2 matrix (`week2-conditions.ipynb`: latent,
+latent_zero, latent_perturb, pause_token × GSM8K + ProsQA × 500
+tasks × 3 seeds = 12,000 attempts) is estimated at roughly 25–30
+GPU-hours — beyond Kaggle's ~12 h single-session limit and close to
+the 30 h/week free quota — so it runs in stages, one **Save & Run
+All (Commit)** per stage. Staging is lossless: the runner appends
+and flushes every attempt to each run's `.attempts.jsonl`, so a
+stage that is cut off keeps all completed attempts.
+
+1. **Stage 1 (pilot)** — `week2-stage1.ipynb`: latent, latent_zero,
+   and pause_token on ProsQA only (500 tasks × seed 0, label
+   `WEEK2S1`). Purpose: measure per-condition wall-clock per attempt
+   and get a first latent-vs-controls signal. Three short runs, well
+   inside one session.
+2. **Timing measured** — extrapolate Stage 1's per-attempt times to
+   the full matrix and split it into stage-sized commits that fit
+   the remaining weekly quota.
+3. **Full matrix in stages** — the remaining `week2-conditions.ipynb`
+   cells, committed stage by stage (datasets/conditions split across
+   commits as the timing dictates), until all 8 condition × dataset
+   tables exist.
