@@ -41,7 +41,7 @@ class MockRunner:
         return 0  # mock: FLOPs estimator reports 0 by construction
 
     def generate(self, messages: list[dict], *, seed: int,
-                 max_new_tokens: int = 256) -> Generation:
+                 max_new_tokens: int = 768) -> Generation:
         t0 = time.perf_counter()
         h = int(hashlib.sha256(
             (messages[-1]["content"] + str(seed)).encode()).hexdigest(), 16)
@@ -82,7 +82,7 @@ class HFRunner:
         return self._n_params
 
     def generate(self, messages: list[dict], *, seed: int,
-                 max_new_tokens: int = 256,
+                 max_new_tokens: int = 768,
                  temperature: float = 0.7,
                  top_p: float = 0.95) -> Generation:
         torch = self._torch

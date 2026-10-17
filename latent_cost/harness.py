@@ -26,8 +26,10 @@ SYSTEM_PROMPT = ("You are a careful problem solver. Reason step by "
                  "step, then state the final answer.")
 
 USER_SUFFIX = {
-    "gsm8k": "\n\nGive the final answer on its own line in the form: #### <number>",
-    "prosqa": "\n\nGive the final answer on its own line in the form: #### <answer>",
+    "gsm8k": "\n\nFinish with a final line in the form: #### <number>",
+    "prosqa": ("\n\nFinish with a final line in the form: "
+               "#### <full statement> "
+               "(for example: #### Sally is a sterpus)"),
 }
 
 
@@ -37,6 +39,14 @@ def build_messages(task: Task) -> list[dict]:
         {"role": "user",
          "content": task.question + USER_SUFFIX[task.dataset]},
     ]
+
+
+def run_kind_note(label: str) -> str:
+    """Heading note for a run's table: smoke runs are pipeline
+    validation; any other label is a baseline run."""
+    if label.strip().upper() == "SMOKE":
+        return "(pipeline validation, not a result)"
+    return "(baseline run)"
 
 
 def final_answer_line(completion: str) -> str:
@@ -50,7 +60,7 @@ def run_condition(tasks: list[Task], *,
                   runner,
                   condition: str = "explicit_cot",
                   seeds: tuple[int, ...] = (0, 1),
-                  max_new_tokens: int = 256,
+                  max_new_tokens: int = 768,
                   log_path: Path | None = None) -> list[AttemptLog]:
     """Run every (task, seed) once; log each attempt as JSONL."""
     attempts: list[AttemptLog] = []

@@ -20,17 +20,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from latent_cost.data import load_gsm8k, load_prosqa
-from latent_cost.harness import run_condition, write_tables
+from latent_cost.harness import run_condition, run_kind_note, write_tables
 from latent_cost.metrics import ModelSpec, PriceCard, compute_metrics
 from latent_cost.models import HFRunner, MockRunner
 
 # Stated rate for local runs (the outline requires prices to be
-# stated so traces can be re-priced): a flat illustrative token rate
-# for pipeline validation. Full runs re-state their card in the
-# results file header.
-SMOKE_CARD = PriceCard(input_usd_per_token=0.10 / 1e6,
-                       output_usd_per_token=0.10 / 1e6,
-                       label="flat stated rate $0.10/1M tokens (smoke)")
+# stated so traces can be re-priced): a flat illustrative token rate.
+# The card's label carries the run label so a table always shows
+# which run its prices belong to. Full runs re-state their card in
+# the results file header.
+def stated_card(label: str) -> PriceCard:
+    return PriceCard(
+        input_usd_per_token=0.10 / 1e6,
+        output_usd_per_token=0.10 / 1e6,
+        label=f"flat stated rate $0.10/1M tokens ({label.strip().lower()})")
 
 
 def main() -> int:
@@ -48,7 +51,7 @@ def main() -> int:
                          "(bfloat16, float16, float32)")
     ap.add_argument("--mock", action="store_true",
                     help="use the canned-CoT mock runner")
-    ap.add_argument("--max-new-tokens", type=int, default=256)
+    ap.add_argument("--max-new-tokens", type=int, default=768)
     ap.add_argument("--out", required=True)
     ap.add_argument("--label", default="RUN")
     args = ap.parse_args()
@@ -78,10 +81,11 @@ def main() -> int:
                              seeds=tuple(args.seeds),
                              max_new_tokens=args.max_new_tokens,
                              log_path=log_path)
-    result = compute_metrics(attempts, price_card=SMOKE_CARD,
+    result = compute_metrics(attempts,
+                             price_card=stated_card(args.label),
                              model=spec)
     title = (f"{args.label} baseline — {args.dataset} / explicit_cot / "
-             f"{spec.name} (pipeline validation, not a result)")
+             f"{spec.name} {run_kind_note(args.label)}")
     csv_path, md_path = write_tables([result], out_prefix, title=title)
     print(f"attempts: {result.attempts}  solves: {result.solves}  "
           f"accuracy: {result.accuracy:.3f}")
