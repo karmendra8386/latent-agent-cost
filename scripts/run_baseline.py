@@ -20,7 +20,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from latent_cost.data import load_gsm8k, load_prosqa
-from latent_cost.harness import run_condition, run_kind_note, write_tables
+from latent_cost.harness import (CONDITION_MODES, run_condition,
+                                 run_kind_note, write_tables)
 from latent_cost.metrics import ModelSpec, PriceCard, compute_metrics
 from latent_cost.models import HFRunner, MockRunner
 
@@ -52,6 +53,17 @@ def main() -> int:
     ap.add_argument("--mock", action="store_true",
                     help="use the canned-CoT mock runner")
     ap.add_argument("--max-new-tokens", type=int, default=768)
+    ap.add_argument("--condition", default="explicit_cot",
+                    choices=sorted(CONDITION_MODES),
+                    help="reasoning condition (Week 2: latent, "
+                         "latent_zero, latent_perturb, pause_token, "
+                         "gpt2_cot, gpt2_latent)")
+    ap.add_argument("--latent-steps", type=int, default=16,
+                    help="reasoning budget: latent forward passes "
+                         "(latent conditions) or filler-token "
+                         "positions (pause_token)")
+    ap.add_argument("--perturb-scale", type=float, default=0.1,
+                    help="Gaussian noise scale for latent_perturb")
     ap.add_argument("--out", required=True)
     ap.add_argument("--label", default="RUN")
     args = ap.parse_args()
@@ -78,13 +90,17 @@ def main() -> int:
     if log_path.exists():
         log_path.unlink()
     attempts = run_condition(tasks, runner=runner,
+                             condition=args.condition,
                              seeds=tuple(args.seeds),
                              max_new_tokens=args.max_new_tokens,
+                             latent_steps=args.latent_steps,
+                             perturb_scale=args.perturb_scale,
                              log_path=log_path)
     result = compute_metrics(attempts,
                              price_card=stated_card(args.label),
                              model=spec)
-    title = (f"{args.label} baseline — {args.dataset} / explicit_cot / "
+    title = (f"{args.label} baseline — {args.dataset} / "
+             f"{args.condition} / "
              f"{spec.name} {run_kind_note(args.label)}")
     csv_path, md_path = write_tables([result], out_prefix, title=title)
     print(f"attempts: {result.attempts}  solves: {result.solves}  "

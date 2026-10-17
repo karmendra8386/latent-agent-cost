@@ -27,6 +27,28 @@ Week 1: harness and costing.
   and ProsQA (canonical distribution: the Coconut authors'
   repository, `facebookresearch/coconut`, `data/prosqa_*.json`).
 
+Week 2: latent conditions, behind the same `run_condition`
+interface (`latent_cost/models.py`):
+
+- `latent` — training-free Coconut-style reasoning: the last
+  hidden state is fed back as the next input embedding for K
+  steps (no tokens sampled, no text trace), then the answer is
+  decoded explicitly.
+- `latent_zero` — zero-latent ablation: same K-step schedule,
+  fed-back states replaced with zeros (compute-matched).
+- `latent_perturb` — perturbation ablation: Gaussian noise
+  (configurable scale) added to the fed-back states.
+- `pause_token` — pause-token control: K filler-token positions
+  (an existing vocabulary token) processed before explicit CoT —
+  the latent budget spent on visible filler.
+- `gpt2_cot` / `gpt2_latent` — the GPT-2 Coconut-style control
+  pair: same modes on base GPT-2, which predates chat templates
+  (plain-text rendering of the same prompt content) and was
+  never trained for latent recurrence; it is the control, and
+  its weakness is expected.
+
+The hybrid router is Week 3.
+
 ## Layout
 
 ```

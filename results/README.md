@@ -76,3 +76,36 @@ labeled SMOKE in their titles.
   compliance at the baseline's 1.5B scale is for the Kaggle rerun
   to show.
 - Files: `smoke2_prosqa.md` / `.csv` / `.attempts.jsonl` / `.log`.
+
+## smoke2-week2_* (2026-10-17, Week-2 conditions smoke)
+
+- Command (per condition): `scripts/run_baseline.py --dataset prosqa
+  --n 10 --seeds 0 --model Qwen/Qwen2.5-0.5B-Instruct
+  --condition {explicit_cot, latent, latent_zero, latent_perturb,
+  pause_token} --latent-steps 16 --perturb-scale 0.1 --label SMOKE`.
+  CPU, this VM. Pipeline validation only -- solves on 10 items
+  (1/2/3/4 across the latent family and pause) are noise, NOT
+  findings; the latent conditions' decoded text at 0.5B is largely
+  degenerate, as expected for training-free hidden-state feedback
+  on a small model.
+- Accounting verified in the attempt logs: latent conditions record
+  `latent_steps=16` and the variant (`identity` / `zero` /
+  `perturb`) on every attempt; the pause control records
+  `pause_tokens=16` in the record meta, with filler positions
+  counted inside `completion_tokens`; FLOPs charge latent steps
+  like token positions.
+- Auditability: 1.00 for every condition on ProsQA. The latent
+  attempts' step logs record the reasoning step as
+  `latent_reasoning` with NO trace text -- the tracelessness is in
+  the record. The rubric scores only action-bearing steps, and on
+  these reasoning-only datasets the one action-bearing step is the
+  final answer, which every condition still produces as explicit
+  decoded text (a non-empty answer line). The score differentiates
+  once Week 3's agent tasks add tool/action steps.
+- GPT-2 control paths (`gpt2_cot`, `gpt2_latent`) also validated
+  end-to-end on the real `openai-community/gpt2` weights (GSM8K
+  n=2, throwaway outputs, not filed here): prompt renders as plain
+  text (no chat template), latent steps recorded, base-model
+  output degenerate -- the control behaving as a control.
+- Files: `smoke2-week2_{explicit,latent,zero,perturb,pause}.md` /
+  `.csv` / `.attempts.jsonl` / `.log`.

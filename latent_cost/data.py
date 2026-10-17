@@ -128,6 +128,14 @@ def extract_final_answer(text: str) -> str:
     return lines[-1] if lines else ""
 
 
+def final_answer_line(completion: str) -> str:
+    """The final-answer line of a completion, ``####`` marker kept."""
+    if "####" in completion:
+        return "####" + completion.rsplit("####", 1)[-1]
+    lines = [ln for ln in completion.strip().splitlines() if ln.strip()]
+    return lines[-1] if lines else ""
+
+
 def _parse_number(s: str) -> float | None:
     m = re.findall(r"-?\$?\d[\d,]*\.?\d*", s)
     if not m:

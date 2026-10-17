@@ -1,9 +1,13 @@
 """Experiment harness: tasks x seeds x condition -> attempt logs
 -> five-metric baseline table.
 
-Week 1 implements the ``explicit_cot`` condition only (the baseline
-every later condition is priced against). Prompts, splits, and the
-verifier are fixed here so later conditions differ only in the
+Week 1 implemented the ``explicit_cot`` condition (the baseline
+every later condition is priced against). Week 2 adds the latent
+condition, its zero-latent and perturbation ablations, the
+pause-token control, and the GPT-2 Coconut-style control pair --
+all behind the same :func:`run_condition` interface, so every
+condition lands in the same five-metric tables. Prompts, splits,
+and the verifier are fixed here so conditions differ only in the
 reasoning mode, per the outline's reporting rules.
 """
 
@@ -14,10 +18,29 @@ import io
 import json
 from pathlib import Path
 
-from .data import Task, verify
+from .data import Task, final_answer_line, verify
 from .metrics import (AttemptLog, MetricsResult, ModelSpec, PriceCard,
                       StepLog, compute_metrics)
-from .models import Generation
+from .models import (DEFAULT_LATENT_STEPS, DEFAULT_PERTURB_SCALE,
+                      Generation)
+
+__all__ = ["CONDITION_MODES", "build_messages", "final_answer_line",
+           "run_condition", "run_kind_note", "write_tables"]
+
+#: Condition name (as it appears in tables and attempt logs) ->
+#: runner generation mode. The GPT-2 control conditions reuse the
+#: explicit / latent modes on a GPT-2 runner; the model is part of
+#: the run configuration, the condition names keep the control's
+#: identity explicit in every output.
+CONDITION_MODES = {
+    "explicit_cot": "explicit",
+    "latent": "latent",
+    "latent_zero": "latent_zero",
+    "latent_perturb": "latent_perturb",
+    "pause_token": "pause",
+    "gpt2_cot": "explicit",
+    "gpt2_latent": "latent",
+}
 
 # ---------------------------------------------------------------------
 # Fixed prompt templates (identical across conditions and seeds)
@@ -49,11 +72,19 @@ def run_kind_note(label: str) -> str:
     return "(baseline run)"
 
 
-def final_answer_line(completion: str) -> str:
-    if "####" in completion:
-        return "####" + completion.rsplit("####", 1)[-1]
-    lines = [ln for ln in completion.strip().splitlines() if ln.strip()]
-    return lines[-1] if lines else ""
+def _explicit_steps(g: Generation) -> list[StepLog]:
+    """Default step decomposition (explicit CoT): the reasoning is
+    written text, and the final-answer step -- the attempt's one
+    action-bearing step -- carries that explicit trace, so
+    explicit CoT scores 1.0 by construction of the rubric (the
+    Week-2 conditions are where the score can fall). Runners that
+    know a richer decomposition (latent, pause) supply their own
+    via ``Generation.steps``."""
+    return [
+        StepLog(kind="reasoning", trace_text=g.text),
+        StepLog(kind="final_answer",
+                trace_text=final_answer_line(g.text)),
+    ]
 
 
 def run_condition(tasks: list[Task], *,
@@ -61,8 +92,22 @@ def run_condition(tasks: list[Task], *,
                   condition: str = "explicit_cot",
                   seeds: tuple[int, ...] = (0, 1),
                   max_new_tokens: int = 768,
+                  latent_steps: int = DEFAULT_LATENT_STEPS,
+                  perturb_scale: float = DEFAULT_PERTURB_SCALE,
                   log_path: Path | None = None) -> list[AttemptLog]:
-    """Run every (task, seed) once; log each attempt as JSONL."""
+    """Run every (task, seed) once under ``condition``; log each
+    attempt as JSONL.
+
+    ``latent_steps`` is the shared reasoning budget: latent
+    forward passes for the latent conditions, filler-token
+    positions for the pause-token control. ``perturb_scale`` is
+    the Gaussian noise scale for the perturbation ablation.
+    """
+    if condition not in CONDITION_MODES:
+        raise ValueError(
+            f"unknown condition {condition!r}; "
+            f"known: {sorted(CONDITION_MODES)}")
+    mode = CONDITION_MODES[condition]
     attempts: list[AttemptLog] = []
     log_fh = open(log_path, "a") if log_path else None
     try:
@@ -70,20 +115,12 @@ def run_condition(tasks: list[Task], *,
             messages = build_messages(task)
             for seed in seeds:
                 g: Generation = runner.generate(
-                    messages, seed=seed, max_new_tokens=max_new_tokens)
+                    messages, seed=seed, max_new_tokens=max_new_tokens,
+                    mode=mode, latent_steps=latent_steps,
+                    perturb_scale=perturb_scale)
                 solved = verify(task, g.text)
-                # Step decomposition for the auditability rubric:
-                # in explicit CoT the reasoning is written text, and
-                # the final-answer step -- the attempt's one
-                # action-bearing step -- carries that explicit
-                # trace, so explicit CoT scores 1.0 by construction
-                # of the rubric (later conditions are where the
-                # score can fall).
-                steps = [
-                    StepLog(kind="reasoning", trace_text=g.text),
-                    StepLog(kind="final_answer",
-                            trace_text=final_answer_line(g.text)),
-                ]
+                steps = (g.steps if g.steps is not None
+                         else _explicit_steps(g))
                 attempt = AttemptLog(
                     task_id=task.task_id,
                     dataset=task.dataset,
@@ -93,13 +130,14 @@ def run_condition(tasks: list[Task], *,
                     completion_tokens=g.completion_tokens,
                     latency_s=g.latency_s,
                     solved=solved,
-                    latent_steps=0,
+                    latent_steps=g.latent_steps,
                     steps=steps,
                 )
                 attempts.append(attempt)
                 if log_fh:
                     record = attempt.to_dict()
                     record["completion_text"] = g.text
+                    record.update(g.meta)
                     log_fh.write(json.dumps(record) + "\n")
                     log_fh.flush()
     finally:
