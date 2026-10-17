@@ -1,0 +1,7 @@
+datasets==5.1.0
+huggingface_hub==2.2.0
+numpy==2.5.4
+pytest==9.1.1
+tokenecon==0.2.0
+torch==2.14.1+cpu
+transformers==5.20.1

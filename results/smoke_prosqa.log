@@ -1,0 +1,6 @@
+loaded 10 prosqa tasks (test)
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Loading weights:  52%|█████▏    | 150/290 [00:00<00:00, 1229.97it/s]Loading weights:  94%|█████████▍| 273/290 [00:00<00:00, 529.57it/s] Loading weights: 100%|██████████| 290/290 [00:00<00:00, 619.20it/s]
+runner: Qwen/Qwen2.5-0.5B-Instruct; params: 494,032,768
+attempts: 20  solves: 5  accuracy: 0.250
+wrote results/smoke_prosqa.csv and results/smoke_prosqa.md; log: results/smoke_prosqa.attempts.jsonl
