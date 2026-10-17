@@ -62,6 +62,28 @@ Notes:
   a Kaggle dataset, attach it to the notebook, and replace the clone
   cell with an unzip of the dataset copy into the working directory.
 
+## Week 1R — ProsQA salvage rerun (split notebook)
+
+The corrected-protocol Week-1R rerun was first committed as one
+combined notebook (Version 3 of `week1-baselines.ipynb`: GSM8K then
+ProsQA, labels WEEK1R). It was **killed at Kaggle's ~12 h session
+limit during the ProsQA cell** — GSM8K finished and its WEEK1R
+results were retrieved, but ProsQA never completed, and at the
+v3 pace the pair no longer fits a single session.
+
+Salvage: `week1r-prosqa.ipynb` reruns **ProsQA only** under the
+same corrected protocol (same preamble, one run cell):
+
+```
+python scripts/run_baseline.py --dataset prosqa --n 500 --seeds 0 1 2 --model Qwen/Qwen2.5-1.5B-Instruct --device cuda --dtype float16 --out results/week1_prosqa --label WEEK1R
+```
+
+Expected duration ~7–8 h (v3 pace) — comfortably inside one
+session. Settings and commit-mode running are as in §1–2; retrieve
+`week1_prosqa.md` / `week1_prosqa.csv` /
+`week1_prosqa.attempts.jsonl` as in §3. Lesson: keep one dataset
+per Kaggle commit at the corrected protocol's pace.
+
 ## Week 2 — staged plan
 
 The full Week-2 matrix (`week2-conditions.ipynb`: latent,
