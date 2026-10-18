@@ -62,27 +62,56 @@ Notes:
   a Kaggle dataset, attach it to the notebook, and replace the clone
   cell with an unzip of the dataset copy into the working directory.
 
-## Week 1R — ProsQA salvage rerun (split notebook)
+## Week 1R — ProsQA salvage: completion run (supersedes the full rerun)
 
 The corrected-protocol Week-1R rerun was first committed as one
 combined notebook (Version 3 of `week1-baselines.ipynb`: GSM8K then
 ProsQA, labels WEEK1R). It was **killed at Kaggle's ~12 h session
 limit during the ProsQA cell** — GSM8K finished and its WEEK1R
-results were retrieved, but ProsQA never completed, and at the
-v3 pace the pair no longer fits a single session.
+results were retrieved (`results/week1r_gsm8k.*`, accuracy 0.661),
+but ProsQA never printed a table.
 
-Salvage: `week1r-prosqa.ipynb` reruns **ProsQA only** under the
-same corrected protocol (same preamble, one run cell):
+Recovery turned out better than a rerun: the runner checkpoints
+every attempt, so the ProsQA attempts log persisted in the killed
+run's Output with **1,449 of 1,500 attempts** — all of tasks
+0..482 × seeds {0,1,2} (saved locally as
+`results/week1r_prosqa.attempts.partial.jsonl`). Only tasks
+483..499 × seeds {0,1,2} (51 attempts) are missing.
 
-```
-python scripts/run_baseline.py --dataset prosqa --n 500 --seeds 0 1 2 --model Qwen/Qwen2.5-1.5B-Instruct --device cuda --dtype float16 --out results/week1_prosqa --label WEEK1R
-```
+**Current plan — completion, not rerun:**
 
-Expected duration ~7–8 h (v3 pace) — comfortably inside one
-session. Settings and commit-mode running are as in §1–2; retrieve
-`week1_prosqa.md` / `week1_prosqa.csv` /
-`week1_prosqa.attempts.jsonl` as in §3. Lesson: keep one dataset
-per Kaggle commit at the corrected protocol's pace.
+1. `week1r-prosqa-completion.ipynb` runs only the missing slice
+   via `scripts/run_completion.py` (same loader, task list sliced
+   by position, same protocol and label):
+
+   ```
+   python scripts/run_completion.py --dataset prosqa --task-start 483 --task-stop 500 --seeds 0 1 2 --model Qwen/Qwen2.5-1.5B-Instruct --device cuda --dtype float16 --out results/week1r_prosqa_completion --label WEEK1R
+   ```
+
+   Minutes-to-tens-of-minutes at the v3 pace. Settings and
+   commit-mode running are as in §1–2; retrieve
+   `week1r_prosqa_completion.attempts.jsonl` from the Output tab.
+2. Merge locally with `scripts/aggregate_attempts.py`, which
+   recomputes the table from attempts logs through the same
+   metrics/table code as the runner:
+
+   ```
+   python scripts/aggregate_attempts.py results/week1r_prosqa.attempts.partial.jsonl results/week1r_prosqa_completion.attempts.jsonl --out results/week1r_prosqa --label WEEK1R
+   ```
+
+   The aggregator is validated by a hard gate
+   (`tests/test_completion.py`): aggregating
+   `results/week1r_gsm8k.attempts.jsonl` reproduces the retrieved
+   `results/week1r_gsm8k.md` / `.csv` **byte for byte**.
+
+**Superseded:** `week1r-prosqa.ipynb` (the full ProsQA-only rerun,
+~7–8 h) is kept in this folder for the record but should **not**
+be run — the completion plan above recovers the identical 1,500
+attempts in a fraction of the GPU time, and a full rerun would
+also redraw the 1,449 already-logged attempts under new sampling
+noise instead of preserving them. Lesson kept from the v3 kill:
+keep one dataset per Kaggle commit at the corrected protocol's
+pace — and prefer completing a checkpointed log over rerunning it.
 
 ## Week 2 — staged plan
 
