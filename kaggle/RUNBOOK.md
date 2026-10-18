@@ -136,3 +136,70 @@ stage that is cut off keeps all completed attempts.
    cells, committed stage by stage (datasets/conditions split across
    commits as the timing dictates), until all 8 condition × dataset
    tables exist.
+
+## Week 3 — trained comparison: Coconut-curriculum GPT-2
+
+The stage-1 pilot's verdict (latent 0.014 vs explicit 0.202 on
+ProsQA) is a statement about *training-free* feedback: the model
+had never been trained to consume its own hidden states. The
+paper's design calls for one trained comparison — a small GPT-2
+(124M) put through Coconut's curriculum, then evaluated through
+the harness's existing `gpt2_cot` / `gpt2_latent` pair with the
+checkpoint as `--model`. No harness changes were needed: the
+runner loads a local checkpoint directory exactly like a Hub id.
+
+### Data and training (run in the notebook, after the clone/install cell)
+
+Training data is the dataset's own reasoning chains — the
+canonical ProsQA train split ships a gold `steps` chain per item
+(17,886 rows; the prep script validates each chain mechanically
+and dropped 0):
+
+```
+python scripts/prepare_prosqa_train.py --split train --out data/prosqa_train.jsonl
+python scripts/train_coconut_gpt2.py --data data/prosqa_train.jsonl --base-model openai-community/gpt2 --out checkpoints/coconut-gpt2-prosqa --stages 0,1,2,3 --epochs-per-stage 1 --lr 1e-4 --grad-accum 8 --device cuda --save-each-stage
+```
+
+`--save-each-stage` writes `checkpoints/coconut-gpt2-prosqa-stage<k>`
+after each stage, so a session that dies mid-curriculum resumes
+from the last stage checkpoint (`--base-model` accepts the local
+path) instead of restarting.
+
+### Evaluation (same notebook pattern as Weeks 1–2)
+
+```
+python scripts/run_baseline.py --dataset prosqa --n 500 --seeds 0 1 2 --model checkpoints/coconut-gpt2-prosqa --condition gpt2_cot --device cuda --dtype float32 --out results/week3_gpt2cot_trained_prosqa --label WEEK3
+python scripts/run_baseline.py --dataset prosqa --n 500 --seeds 0 1 2 --model checkpoints/coconut-gpt2-prosqa --condition gpt2_latent --latent-steps 3 --device cuda --dtype float32 --out results/week3_gpt2latent_trained_prosqa --label WEEK3
+```
+
+Notes:
+
+- **`--latent-steps` must match the trained interface.** The
+  checkpoint was trained (final stage 3) to consume up to 3 latent
+  feedback positions before text resumes; evaluating with a very
+  different budget measures a different interface than the one
+  trained. A small sweep (2/3/4) is a legitimate secondary table.
+- **Same protocol as every other cell:** same test split, seeds,
+  prompts, verifier, and price card — only the weights differ
+  from the untrained GPT-2 control pair, which is the point.
+- The untrained GPT-2 pair (`--model openai-community/gpt2`,
+  conditions `gpt2_cot` / `gpt2_latent`) should be run in the same
+  stage if its tables don't exist yet, so trained-vs-untrained is
+  a same-week comparison.
+
+### GPU-hour expectations (estimates, from measured pilot pacing)
+
+- **Training:** ~1–2 GPU-hours per epoch at stages 0–1, up to
+  ~2–3 at stage 3 (later stages recompute longer prefixes).
+  The full 4-stage × 1-epoch curriculum: **~5–8 GPU-hours** —
+  one Kaggle session, inside the ~12 h cap. Two epochs per stage
+  (~10–16 GPU-hours) should be split across two sessions;
+  per-stage checkpoints make the split lossless.
+- **Evaluation:** GPT-2 is ~12× smaller than the Week-2 pilot's
+  1.5B model; expect roughly 0.5–1 GPU-hour per condition for
+  500 × 3 seeds, so **~1–2 GPU-hours** for the trained pair.
+- Total Week-3 budget: **~7–10 GPU-hours** for the 1-epoch
+  curriculum plus both evaluations — about a third of one week's
+  free quota. Do not start it in a week whose quota is already
+  committed to the Week-2 matrix stages.
+
