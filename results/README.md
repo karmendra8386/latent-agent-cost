@@ -142,3 +142,29 @@ labeled SMOKE in their titles.
   output degenerate -- the control behaving as a control.
 - Files: `smoke2-week2_{explicit,latent,zero,perturb,pause}.md` /
   `.csv` / `.attempts.jsonl` / `.log`.
+
+## Week 2 stage-1 pilot (WEEK2S1, 2026-10-17/18)
+ProsQA, n=500, seed 0, Qwen2.5-1.5B-Instruct, latent-steps 16.
+Same tasks/seed as the WEEK1R explicit seed-0 subset (acc 0.202).
+
+| condition | acc | $/solve | tokens/solve | FLOPs/solve |
+|---|---|---|---|---|
+| explicit_cot (ref) | 0.202 | 0.0004 | 2192 | 1.3e13 |
+| latent | 0.014 | 0.0080 | 53122 | 2.5e14 |
+| latent_zero | 0.174 | 0.0004 | 2129 | 1.4e13 |
+| pause_token | 0.202 | 0.0003 | 1288 | 9.8e12 |
+
+Diagnosis (from attempts files): latent fails by DEGENERATION, not
+wrong reasoning — 493/500 completions never produce the '#### '
+answer line, 480/500 hit the 768-token cap, samples collapse into
+repetition loops; zero extracted-but-wrong. Feeding raw last hidden
+states back as inputs is off-distribution for an instruct model
+never trained to consume them (the interface Coconut's curriculum
+training exists to fix). Controls: zeroed feedback is near-free
+(0.174, within noise of explicit); pause tokens tie explicit on
+accuracy at the lowest $/solve. Training-free latent feedback at
+1.5B is therefore ~20-27x MORE expensive per solve than every
+alternative — H1 is falsified for the training-free regime; the
+paper's cost framing survives on the controls + the trained
+(GPT-2 curriculum) comparison. Files: week2s1_{latent,zero,pause}_prosqa.*
+Session: 7h48m GPU; quota left after: 2h20m of 30h.
