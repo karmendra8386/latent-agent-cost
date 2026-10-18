@@ -71,10 +71,24 @@ labeled SMOKE in their titles.
   FLOPs/solve 1.781e12, tokens/solve 418.5, auditability 1.00.
   Heading "(baseline run)", price card "(week1r)" — labels verified.
 - Files: `week1r_gsm8k.md` / `.csv` / `.attempts.jsonl` (1500 lines).
-- ProsQA WEEK1R: NOT obtained from v3 (killed mid-cell; no completion
-  line). Salvage = ProsQA-only notebook `kaggle/week1r-prosqa.ipynb`
-  (single dataset, same protocol/label), launched 2026-10-17 evening;
-  results land here as `week1r_prosqa.*` on retrieval.
+- ProsQA WEEK1R — FINAL (merged): the v3 ProsQA cell was killed
+  mid-run, but its attempts file persisted in the version Output:
+  1,449/1,500 attempts recovered (tasks 0–482 × seeds 0 1 2). The
+  missing 51 (tasks 483–499 × 3 seeds) were run by the completion
+  notebook `kaggle/week1r-prosqa-completion.ipynb` (15m 2s, 9 solves)
+  under the identical protocol, then merged and re-aggregated with
+  `scripts/aggregate_attempts.py` — an aggregator first validated to
+  reproduce the GSM8K table byte-for-byte from its attempts file.
+  Final: 1500 attempts, 271 solves, accuracy 0.181 (vs 0.144 under
+  the flawed protocol), usd/solve 0.0004, latency median 16.06s,
+  FLOPs/solve 1.323e13, tokens/solve 2192.2, auditability 1.00.
+  Heading "(baseline run)", price card "(week1r)" — labels verified.
+  Files: `week1r_prosqa.md` / `.csv` / `.attempts.jsonl` (1500 lines;
+  provenance parts: `.attempts.partial.jsonl` + 
+  `week1r_prosqa_completion.attempts.jsonl`, both kept).
+- WEEK 1 CLOSED (2026-10-17): both baselines under the corrected
+  protocol — GSM8K 0.661, ProsQA 0.181, explicit CoT,
+  Qwen2.5-1.5B-Instruct, n=500 × seeds 0 1 2.
 
 ## smoke2_prosqa (2026-10-17, protocol-fix validation)
 

@@ -1,0 +1,2 @@
+dataset,condition,model,attempts,solves,accuracy,usd_per_solve,latency_per_solve_median_s,latency_per_solve_iqr_s,flops_per_solve,tokens_per_solve,total_tokens_per_solve,auditability,price_card_label
+prosqa,explicit_cot,Qwen/Qwen2.5-1.5B-Instruct,1500,271,0.18066666666666667,0.0004284372693726938,16.056071344497468,10.924679588999425,13227694821946.568,2192.1549815498156,4284.3726937269375,1.0,flat stated rate $0.10/1M tokens (week1r)
