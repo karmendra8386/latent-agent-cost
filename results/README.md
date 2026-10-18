@@ -57,6 +57,25 @@ labeled SMOKE in their titles.
   an explicit "#### <answer>" final-line instruction; label bugs fixed),
   then BOTH baselines rerun under the corrected protocol before Week 2.
 
+## week1r_gsm8k (2026-10-17, corrected-protocol rerun — GSM8K CLOSED)
+
+- Kaggle notebook latent-agent-cost-week1-baselines, Version 3
+  (label WEEK1R; corrected protocol: cap 768, "#### <answer>"
+  final-line instruction). GSM8K cell completed in-session at
+  18,260s; the combined run was later KILLED at Kaggle's 12h session
+  limit during the ProsQA cell (43212.3s, exit 137) — but the GSM8K
+  artifacts persisted in the version Output and were retrieved.
+- Result (explicit CoT, Qwen2.5-1.5B-Instruct, n=500 x seeds 0 1 2):
+  1500 attempts, 992 solves, accuracy 0.661 (vs 0.458 under the
+  flawed protocol), usd/solve 0.0001, latency median 11.38s,
+  FLOPs/solve 1.781e12, tokens/solve 418.5, auditability 1.00.
+  Heading "(baseline run)", price card "(week1r)" — labels verified.
+- Files: `week1r_gsm8k.md` / `.csv` / `.attempts.jsonl` (1500 lines).
+- ProsQA WEEK1R: NOT obtained from v3 (killed mid-cell; no completion
+  line). Salvage = ProsQA-only notebook `kaggle/week1r-prosqa.ipynb`
+  (single dataset, same protocol/label), launched 2026-10-17 evening;
+  results land here as `week1r_prosqa.*` on retrieval.
+
 ## smoke2_prosqa (2026-10-17, protocol-fix validation)
 
 - Command: `scripts/run_baseline.py --dataset prosqa --n 10 --seeds 0
