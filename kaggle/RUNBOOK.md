@@ -255,6 +255,61 @@ generation from each evaluated path (stage-0 CoT and final
 latent, 3 steps). If it does not print `PREFLIGHT PASSED`, do
 not start the 500-attempt cells.
 
+#### Environment guard — why WEEK3EVAL Version 2 failed
+
+Version 2 got past the install and the checkpoint locator, then
+died in the **pre-flight cell** after ~85 s — before any
+500-attempt cell ran — with:
+
+```text
+AttributeError: module 'numpy._core._multiarray_umath' has no
+attribute '_blas_supports_fpe'  (numpy/testing/_private/utils.py)
+```
+
+cascading into `ModuleNotFoundError: Could not import module
+'GenerationMixin'` and then the same for `AutoModelForCausalLM`
+at the first `HFRunner(...)` construction. That attribute exists
+only when numpy's Python files and its compiled core are the
+**same** version: the Python side on disk was new, the compiled
+core already loaded in the kernel was old — a mixed numpy
+install.
+
+Mechanism: the old install cell filtered only the `torch` line
+out of `requirements.txt`, leaving `numpy==2.5.4` — the *local*
+CPU stack's pin — to be force-installed over Kaggle's
+preinstalled numpy. The kernel had already imported the
+preinstalled numpy (the notebook's first cell imports torch,
+which imports numpy), so pip swapped the files on disk under a
+live, old compiled core. The break surfaced only when something
+lazily imported a not-yet-loaded numpy submodule
+(`numpy.testing`, pulled in during transformers' dynamic import
+of `GenerationMixin` in the pre-flight cell). Whether that lazy
+import lands before or after the swap is import-order luck —
+which is why Version 1 (same install cell, ~35 min earlier) and
+the Week-3 training notebook (Oct 23–24) ran fine while Version
+2 did not. The install is therefore hardened rather than merely
+retried. Note the old cell's only post-install check,
+`!python -c "import torch"`, ran in a fresh subprocess against a
+consistent on-disk install and was blind to the in-kernel mix.
+
+Fix (in the notebook's install cell): filter **both** `torch`
+and `numpy` out of the requirements; capture Kaggle's
+preinstalled `numpy` / `scipy` / `pandas` versions *before* pip
+runs and pass them as a **constraints file**, so no transitive
+dependency (e.g. `datasets` → pandas) can swap the compiled
+stack either — a genuine conflict now fails the install cell
+loudly instead of corrupting the session. `transformers` stays
+pinned at `==5.20.1`: it is proven on this exact Kaggle stack
+(torch 2.11.0+cu128) by the training run and by Version 1 — the
+failure was never a transformers/torch incompatibility. A new
+**smoke-check cell** immediately after the install imports — in
+this kernel, in this process — `numpy`, `numpy.testing`,
+`torch`, `transformers`, `AutoModelForCausalLM`, and
+`GenerationMixin`, prints all versions, and hard-fails with a
+clear message if the stack is inconsistent. It must print
+`ENV SMOKE OK`; treat it as a launch gate exactly like
+`PREFLIGHT PASSED` below.
+
 #### Launch procedure
 
 1. Check the account's remaining GPU quota first; do not start
@@ -273,7 +328,12 @@ not start the 500-attempt cells.
    locator's printed stage-0 and final checkpoint paths. A
    locator `FileNotFoundError` means the input was not attached
    correctly.
-6. Confirm the pre-flight cell prints `PREFLIGHT PASSED`
+6. Confirm the smoke-check cell prints `ENV SMOKE OK` with the
+   numpy / torch / transformers versions. If it fails, stop: the
+   environment, not the checkpoints, is broken — see failure #2
+   above. Do not let the pre-flight cell be the first thing to
+   discover a broken install.
+7. Confirm the pre-flight cell prints `PREFLIGHT PASSED`
    (both short generations, the 1,024-position limit, and the
    worst-case clamped budget). If it fails, stop and fix that
    failure — do not let a 500-attempt cell be the first thing
