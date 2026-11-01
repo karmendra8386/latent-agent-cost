@@ -10,6 +10,7 @@ and skip when the artifacts are not available locally.
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -18,6 +19,8 @@ from latent_cost.harness import CONDITION_MODES, build_messages, run_condition
 from latent_cost.metrics import (AttemptLog, ModelSpec, PriceCard,
                                  StepLog, compute_metrics)
 from latent_cost.models import (LATENT_VARIANTS, MockRunner,
+                                bounded_max_new_tokens,
+                                model_context_limit,
                                 transform_latent_state)
 
 torch = pytest.importorskip("torch")
@@ -79,6 +82,78 @@ def test_transform_perturb_zero_sigma_is_identity():
 def test_transform_unknown_variant_rejected():
     with pytest.raises(ValueError):
         transform_latent_state(torch.zeros(1, 1, 4), "sideways")
+
+
+# ---------------------------------------------------------------------
+# Context-limit guard (Week-3 GPT-2 eval regression)
+# ---------------------------------------------------------------------
+def test_generation_budget_respects_position_limit():
+    """GPT-2 has 1,024 positions. The first real ProsQA test
+    prompt tokenizes to 591 GPT-2 tokens, so the harness's
+    768-token request must be clamped to 433 -- the unclamped
+    request is what produced the CUDA device-side assert in the
+    WEEK3EVAL notebook once generation ran past position 1,023.
+    Latent steps reserve positions before decoding starts."""
+    assert bounded_max_new_tokens(
+        768, prompt_tokens=591, context_limit=1024) == 433
+    assert bounded_max_new_tokens(
+        768, prompt_tokens=591, context_limit=1024,
+        reserved_positions=3) == 430
+    assert bounded_max_new_tokens(
+        768, prompt_tokens=1023, context_limit=1024) == 1
+    assert bounded_max_new_tokens(
+        768, prompt_tokens=10, context_limit=None) == 768
+    with pytest.raises(ValueError, match="context limit"):
+        bounded_max_new_tokens(
+            768, prompt_tokens=1024, context_limit=1024)
+
+
+def test_model_context_limit_reads_gpt2_config_names():
+    model = SimpleNamespace(
+        config=SimpleNamespace(max_position_embeddings=1024))
+    assert model_context_limit(model) == 1024
+    legacy = SimpleNamespace(config=SimpleNamespace(n_positions=512))
+    assert model_context_limit(legacy) == 512
+    assert model_context_limit(SimpleNamespace(config=None)) is None
+
+
+@pytest.mark.skipif(
+    not (Path.home() / ".cache" / "huggingface" / "hub"
+         / "models--openai-community--gpt2").exists(),
+    reason="gpt2 not in the local HF cache")
+def test_hf_explicit_path_clamps_generate_budget():
+    """End-to-end at the HFRunner boundary: a recording stub
+    model with a 12-position limit must receive the clamped
+    budget, not the caller's 768."""
+    from transformers import AutoTokenizer
+
+    from latent_cost.models import HFRunner
+
+    class RecordingModel:
+        config = SimpleNamespace(max_position_embeddings=12)
+
+        def generate(self, **kwargs):
+            self.requested_max_new_tokens = kwargs["max_new_tokens"]
+            input_ids = kwargs["input_ids"]
+            filler = torch.ones(
+                (1, self.requested_max_new_tokens),
+                dtype=input_ids.dtype)
+            return torch.cat([input_ids, filler], dim=1)
+
+    runner = object.__new__(HFRunner)
+    runner._torch = torch
+    runner.name = "recording-stub"
+    runner.device = "cpu"
+    runner.tokenizer = AutoTokenizer.from_pretrained(
+        "openai-community/gpt2")
+    runner.model = RecordingModel()
+    g = runner.generate(
+        [{"role": "user", "content": "Tom is a gorpus."}],
+        seed=0, max_new_tokens=768, mode="explicit")
+    expected = 12 - g.prompt_tokens
+    assert 0 < expected < 768
+    assert runner.model.requested_max_new_tokens == expected
+    assert g.completion_tokens == expected
 
 
 # ---------------------------------------------------------------------

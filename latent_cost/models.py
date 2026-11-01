@@ -92,6 +92,54 @@ DEFAULT_LATENT_STEPS = 16
 DEFAULT_PERTURB_SCALE = 0.1
 
 
+def model_context_limit(model) -> int | None:
+    """The model's hard position limit, if its config exposes one.
+
+    GPT-2 exposes this as ``max_position_embeddings`` (and the
+    legacy alias ``n_positions``): token position ``limit`` does
+    not exist, so a prompt of ``P`` tokens leaves at most
+    ``limit - P`` positions for generation, regardless of the
+    caller's requested ``max_new_tokens``. Models whose configs
+    expose no finite position limit return ``None``.
+    """
+    config = getattr(model, "config", None)
+    if config is None:
+        return None
+    for name in ("max_position_embeddings", "n_positions", "n_ctx"):
+        value = getattr(config, name, None)
+        if isinstance(value, int) and not isinstance(value, bool) \
+                and value > 0:
+            return value
+    return None
+
+
+def bounded_max_new_tokens(requested: int, *, prompt_tokens: int,
+                           context_limit: int | None,
+                           reserved_positions: int = 0) -> int:
+    """Clamp a generation budget to the model's position limit.
+
+    ``reserved_positions`` counts non-completion positions that
+    will occupy the context before decoding (latent feedback
+    steps or pause-token filler). Raises ``ValueError`` when the
+    prompt plus reserved positions already fill the context, so
+    the failure is a clear local error rather than a CUDA
+    device-side assert deep inside the model.
+    """
+    if requested < 0:
+        raise ValueError("max_new_tokens must be >= 0")
+    if prompt_tokens < 0 or reserved_positions < 0:
+        raise ValueError("token counts must be >= 0")
+    if context_limit is None:
+        return requested
+    remaining = context_limit - prompt_tokens - reserved_positions
+    if remaining <= 0:
+        raise ValueError(
+            f"prompt ({prompt_tokens} tokens) plus reserved "
+            f"positions ({reserved_positions}) meets or exceeds "
+            f"the model's context limit ({context_limit})")
+    return min(requested, remaining)
+
+
 def transform_latent_state(state, variant: str, *, sigma: float = 0.0,
                            torch_module=None):
     """Apply one latent-feedback transform to a hidden state.
@@ -235,6 +283,17 @@ class HFRunner:
     def n_params(self) -> int:
         return self._n_params
 
+    def _bounded_max_new_tokens(self, prompt_tokens: int,
+                                requested: int, *,
+                                reserved_positions: int = 0) -> int:
+        """The requested generation budget, clamped to this
+        model's hard position limit (see
+        :func:`bounded_max_new_tokens`)."""
+        return bounded_max_new_tokens(
+            requested, prompt_tokens=prompt_tokens,
+            context_limit=model_context_limit(self.model),
+            reserved_positions=reserved_positions)
+
     # -- prompt rendering -----------------------------------------
     def _prompt_text(self, messages: list[dict]) -> str:
         """Render the fixed harness prompt for this tokenizer.
@@ -316,6 +375,8 @@ class HFRunner:
         inputs = self.tokenizer(prompt_text, return_tensors="pt").to(
             self.device)
         prompt_tokens = inputs["input_ids"].shape[1]
+        max_new_tokens = self._bounded_max_new_tokens(
+            prompt_tokens, max_new_tokens)
         # transformers v5 removed the per-call `generator` kwarg from
         # generate(); seed the global RNG per attempt instead.
         # Attempts run sequentially, so draws stay reproducible per
@@ -353,6 +414,8 @@ class HFRunner:
             self.device)
         prompt_ids = inputs["input_ids"]
         prompt_tokens = prompt_ids.shape[1]
+        max_new_tokens = self._bounded_max_new_tokens(
+            prompt_tokens, max_new_tokens, reserved_positions=n_pause)
         pause_id = self._pause_token_id()
         filler = torch.full((1, n_pause), pause_id,
                             dtype=prompt_ids.dtype, device=self.device)
@@ -427,6 +490,9 @@ class HFRunner:
             self.device)
         input_ids = inputs["input_ids"]
         prompt_tokens = input_ids.shape[1]
+        max_new_tokens = self._bounded_max_new_tokens(
+            prompt_tokens, max_new_tokens,
+            reserved_positions=latent_steps)
         backbone, _embed, _head = self._backbone()
         torch.manual_seed(seed)
         t0 = time.perf_counter()
