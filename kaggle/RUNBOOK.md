@@ -165,27 +165,131 @@ after each stage, so a session that dies mid-curriculum resumes
 from the last stage checkpoint (`--base-model` accepts the local
 path) instead of restarting.
 
-### Evaluation (same notebook pattern as Weeks 1–2)
+### Evaluation — trained checkpoints (WEEK3EVAL notebook)
+
+The training run completed in `latent-agent-cost-week3-gpt2-train`
+Version 1 (recorded runtime **5h51m49s**; recorded stage losses
+0.089 / 0.073 / 0.094 / 0.128 for stages 0 / 1 / 2 / 3). Its four
+stage checkpoints and final checkpoint live only in that
+version's Output — they are not in this repository. Use the
+dedicated notebook `kaggle/week3-gpt2-eval.ipynb`; do not
+substitute the older generic three-seed commands.
+
+#### Attach the training output as an input
+
+1. Open `latent-agent-cost-week3-gpt2-train`, select **Version
+   1**, and confirm its Output contains the checkpoint
+   directories.
+2. In the evaluation notebook, use **Add Input** and select the
+   training notebook's Version 1 Output (Kaggle's menu wording
+   may show this under Notebook Output / Your Work). Attach it
+   before Save & Run All.
+3. The eval notebook's locator cell searches `/kaggle/input`
+   recursively, so either a direct `checkpoints/` tree or the
+   full training working directory (including a nested
+   `latent-agent-cost/checkpoints/` tree) is fine. It accepts a
+   directory only when the directory name matches and it
+   contains `config.json`, `coconut_training.json`, and model
+   weights:
+   - stage 0: `coconut-gpt2-prosqa-stage0`
+   - final: `coconut-gpt2-prosqa` (preferred), or the
+     stage-3 snapshot `coconut-gpt2-prosqa-stage3`
+4. If the locator fails, fix the attachment — do not replace it
+   with a guessed mounted path. Alternatively set
+   `WEEK3_CKPT_ROOT` at the top of the locator cell to a parent
+   directory containing the checkpoint directories.
+
+#### Evaluation matrix
+
+ProsQA, **n=500, seed 0**, label `WEEK3EVAL`, dtype `float32`.
+The notebook resolves `STAGE0_CKPT` and `FINAL_CKPT` from the
+attached input and runs:
 
 ```
-python scripts/run_baseline.py --dataset prosqa --n 500 --seeds 0 1 2 --model checkpoints/coconut-gpt2-prosqa --condition gpt2_cot --device cuda --dtype float32 --out results/week3_gpt2cot_trained_prosqa --label WEEK3
-python scripts/run_baseline.py --dataset prosqa --n 500 --seeds 0 1 2 --model checkpoints/coconut-gpt2-prosqa --condition gpt2_latent --latent-steps 3 --device cuda --dtype float32 --out results/week3_gpt2latent_trained_prosqa --label WEEK3
+python scripts/run_baseline.py --dataset prosqa --n 500 --seeds 0 --model "$STAGE0_CKPT" --condition gpt2_cot --device cuda --dtype float32 --out results/week3eval_stage0_gpt2_cot_prosqa --label WEEK3EVAL
+python scripts/run_baseline.py --dataset prosqa --n 500 --seeds 0 --model "$FINAL_CKPT" --condition gpt2_cot --device cuda --dtype float32 --out results/week3eval_final_gpt2_cot_prosqa --label WEEK3EVAL
+python scripts/run_baseline.py --dataset prosqa --n 500 --seeds 0 --model "$FINAL_CKPT" --condition gpt2_latent --latent-steps 3 --device cuda --dtype float32 --out results/week3eval_final_gpt2_latent_prosqa --label WEEK3EVAL
 ```
+
+The final cell writes `results/week3eval_summary.csv` and
+`results/week3eval_summary.md`, placing accuracy and $/solve for
+all three runs side by side with the recorded training runtime
+and stage losses labelled as training-run constants. Before
+tabulating, it asserts from the attempts logs (not the command
+strings) that every run has 500 seed-0 attempts, the expected
+condition, and the expected latent-step count — 0 for both CoT
+runs and exactly **3** for the latent run.
+
+#### Launch procedure
+
+1. Check the account's remaining GPU quota first; do not start
+   unless it comfortably exceeds the runtime estimate below.
+2. Import `kaggle/week3-gpt2-eval.ipynb`, attach the training
+   Version 1 Output as above, and set **Accelerator = GPU
+   (T4 ×2)** and **Internet = ON**.
+3. **Save Version → Save & Run All (Commit)**.
+4. Immediately open the Versions list and verify the new version
+   is **Running** (or Queued). If importing/auto-start produced
+   a duplicate version, cancel the duplicate so only one version
+   is consuming quota; a duplicate launched without a GPU should
+   hard-fail in its first cell, but do not leave two live
+   versions running.
+5. Confirm the early output shows a CUDA device and the
+   locator's printed stage-0 and final checkpoint paths. A
+   locator `FileNotFoundError` means the input was not attached
+   correctly.
+
+**Expected runtime (estimate, not a result): ~0.5–1.5
+GPU-hours total.** Basis: the earlier estimate below of
+0.5–1 GPU-hour for a 1,500-attempt GPT-2 condition scales to
+roughly 10–20 minutes for each of these 500-attempt conditions
+(~30–60 minutes for all three), plus checkpoint loading and
+extra allowance for the latent condition's token-by-token
+decode loop. This remains far inside Kaggle's ~12 h session cap,
+and the runner flushes every attempt to its JSONL log as it
+completes.
+
+#### Retrieve the results
+
+From the finished eval version's Output, download from the
+cloned repository's `results/` directory:
+
+- `week3eval_stage0_gpt2_cot_prosqa.md` / `.csv` /
+  `.attempts.jsonl`
+- `week3eval_final_gpt2_cot_prosqa.md` / `.csv` /
+  `.attempts.jsonl`
+- `week3eval_final_gpt2_latent_prosqa.md` / `.csv` /
+  `.attempts.jsonl`
+- `week3eval_summary.md` / `.csv`
+
+Drop them into `results/` in the local checkout and commit.
+
+#### Hard-stop rule — read stage 0 first
+
+The stage-0 `gpt2_cot` row is the explicit-fine-tune sanity
+baseline and is read **before** either final-checkpoint row is
+interpreted. No numeric sanity threshold was pre-registered in
+the project record, so do not invent one after seeing the
+number. If stage-0 CoT is degenerate or otherwise not a
+credible ProsQA fine-tune, stop the trained-arm interpretation:
+report that the trained arm failed the stage-0 sanity gate, do
+not present the final latent-vs-CoT difference as evidence
+about trained latent reasoning, and proceed with the paper
+without the trained arm, saying so. Only if stage 0 is sane
+does the same-weights final CoT vs final latent comparison
+answer the trained-interface question.
 
 Notes:
 
-- **`--latent-steps` must match the trained interface.** The
-  checkpoint was trained (final stage 3) to consume up to 3 latent
-  feedback positions before text resumes; evaluating with a very
-  different budget measures a different interface than the one
-  trained. A small sweep (2/3/4) is a legitimate secondary table.
-- **Same protocol as every other cell:** same test split, seeds,
-  prompts, verifier, and price card — only the weights differ
-  from the untrained GPT-2 control pair, which is the point.
-- The untrained GPT-2 pair (`--model openai-community/gpt2`,
-  conditions `gpt2_cot` / `gpt2_latent`) should be run in the same
-  stage if its tables don't exist yet, so trained-vs-untrained is
-  a same-week comparison.
+- **`--latent-steps` must be 3.** The checkpoint was trained
+  (final stage 3) to consume 3 latent feedback positions before
+  text resumes; evaluating with a different budget measures a
+  different interface than the one trained. A small sweep
+  (2/3/4) would be a separate secondary table, not WEEK3EVAL.
+- **Same protocol inside the matrix:** same ProsQA test split,
+  n, seed, prompts, verifier, max-token cap, and stated price
+  card. The intended differences are checkpoint (stage 0 vs
+  final) and, on the final checkpoint, generation mode.
 
 ### GPU-hour expectations (estimates, from measured pilot pacing)
 
@@ -196,10 +300,15 @@ Notes:
   (~10–16 GPU-hours) should be split across two sessions;
   per-stage checkpoints make the split lossless.
 - **Evaluation:** GPT-2 is ~12× smaller than the Week-2 pilot's
-  1.5B model; expect roughly 0.5–1 GPU-hour per condition for
-  500 × 3 seeds, so **~1–2 GPU-hours** for the trained pair.
-- Total Week-3 budget: **~7–10 GPU-hours** for the 1-epoch
-  curriculum plus both evaluations — about a third of one week's
-  free quota. Do not start it in a week whose quota is already
-  committed to the Week-2 matrix stages.
+  1.5B model. The older planning estimate was roughly
+  0.5–1 GPU-hour per condition for 500 × 3 seeds. For the
+  actual WEEK3EVAL matrix (three conditions × 500 × seed 0),
+  use the dedicated estimate in the evaluation section above:
+  **~0.5–1.5 GPU-hours total**, including loading and latent
+  decode allowance.
+- Total Week-3 budget: the completed 1-epoch training run took
+  **5h51m49s** (recorded), and WEEK3EVAL is estimated at
+  **~0.5–1.5 GPU-hours**, for **~6.4–7.4 GPU-hours** overall.
+  Do not start a comparable run in a week whose quota is
+  already committed to the Week-2 matrix stages.
 
