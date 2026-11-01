@@ -168,3 +168,49 @@ alternative — H1 is falsified for the training-free regime; the
 paper's cost framing survives on the controls + the trained
 (GPT-2 curriculum) comparison. Files: week2s1_{latent,zero,pause}_prosqa.*
 Session: 7h48m GPU; quota left after: 2h20m of 30h.
+
+## Week 3 trained evaluation (WEEK3EVAL, 2026-11-01)
+
+Kaggle notebook `latent-agent-cost-week3-gpt2-eval` Version 3
+(scriptVersionId 364417114) — Complete, 601.2s on GPU T4 x2.
+Both launch gates passed in-log: `ENV SMOKE OK` (numpy 2.1.3,
+torch 2.11.0+cu128, transformers 5.20.1) and `PREFLIGHT PASSED`.
+ProsQA, n=500, seed 0, GPT-2 (124M) Coconut-curriculum checkpoints
+from the Week-3 training run (runtime 5h51m49s; stage losses
+0.089 / 0.073 / 0.094 / 0.128). Retrieved 2026-11-01 from the
+version Output (full-output archive); copies also in
+`kaggle-outputs/week3eval/`.
+
+| checkpoint / condition | acc | $/solve | tokens/solve | FLOPs/solve |
+|---|---|---|---|---|
+| stage-0 gpt2_cot | 0.570 | 0.000084 | 121.9 | 2.089e11 |
+| final gpt2_cot | 0.768 | 0.000054 | 12.0 | 1.356e11 |
+| final gpt2_latent (3 steps) | 0.676 | 0.000064 | 31.3 | 1.595e11 |
+
+Verification (from the retrieved attempts logs, not the command
+strings): each attempts file has exactly 500 lines, every record
+seed 0; solves 285 / 384 / 338 reproduce the summary accuracies;
+both CoT files record `latent_steps=0` on every record and the
+latent file records `latent_steps=3` on every record. Auditability
+1.00 for all three. $/solve uses the summary CSV's unrounded
+values (8.395e-05 / 5.447e-05 / 6.364e-05) at the flat stated rate
+$0.10/1M tokens (week3eval price card).
+
+HARD-STOP GATE — PASSED. Stage-0 CoT at 0.570 is a sane explicit
+fine-tune baseline: well above the Week-1/2 untrained ProsQA
+references (0.181–0.202), non-degenerate, and the curriculum then
+lifts the same-weights final checkpoint to 0.768 under CoT — a
+credible fine-tune learning curve. The trained latent-vs-CoT
+comparison is therefore interpretable.
+
+Reading: on the final checkpoint, trained latent reasoning
+(0.676) trails explicit CoT (0.768) by 9.2 points AND costs more
+per solve ($0.000064 vs $0.000054, ~1.17x; median latency per
+solve 0.208s vs 0.098s). Even with Coconut-curriculum training
+built for the interface, latent feedback at GPT-2 scale is both
+less accurate and more expensive per correct answer than CoT on
+the same weights — the cost case against latent reasoning now
+holds in the trained regime as well as the training-free one.
+WEEK 3 CLOSED. Files: week3eval_stage0_gpt2_cot_prosqa.*,
+week3eval_final_gpt2_cot_prosqa.*,
+week3eval_final_gpt2_latent_prosqa.*, week3eval_summary.md/.csv.
