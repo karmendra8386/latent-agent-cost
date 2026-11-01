@@ -220,6 +220,41 @@ strings) that every run has 500 seed-0 attempts, the expected
 condition, and the expected latent-step count — 0 for both CoT
 runs and exactly **3** for the latent run.
 
+#### Context-limit guard — why WEEK3EVAL Version 1 failed
+
+Version 1 died during the stage-0 `gpt2_cot` run with
+`torch.AcceleratorError: CUDA error: device-side assert
+triggered`. Root cause (reproduced locally on CPU with the
+first real ProsQA prompt): GPT-2 has only **1,024 position
+embeddings**, the ProsQA prompts are long (208–593 GPT-2
+tokens; the first test prompt is 591), and the harness's
+standard 768-token generation request therefore lets a
+non-terminating generation run past position 1,023 — an
+embedding index out of range, which surfaces on CUDA as a
+device-side assert. It was not a checkpoint/tokenizer mismatch:
+the trainer adds no tokens, and the saved config's
+`vocab_size` and the tokenizer length are both 50,257; every
+prompt token id is below that.
+
+The harness now clamps every generation budget to the
+positions actually remaining under the model's config limit
+(`min(requested, limit - prompt_tokens - reserved_positions)`,
+where latent steps and pause filler count as reserved
+positions), and raises a clear `ValueError` if a prompt alone
+fills the context. The requested cap is still 768; the
+*effective* cap for a 591-token GPT-2 prompt is 433 (430 for
+the latent run, which reserves its 3 feedback positions).
+Gold ProsQA completions are at most 77 tokens, so the clamp
+binds only on generations that would otherwise loop into the
+position wall.
+
+The notebook's **pre-flight cell** (immediately after the
+checkpoint locator) is mandatory: it checks all 500 prompts
+against the stage-0 checkpoint's limit and runs one short
+generation from each evaluated path (stage-0 CoT and final
+latent, 3 steps). If it does not print `PREFLIGHT PASSED`, do
+not start the 500-attempt cells.
+
 #### Launch procedure
 
 1. Check the account's remaining GPU quota first; do not start
@@ -238,6 +273,11 @@ runs and exactly **3** for the latent run.
    locator's printed stage-0 and final checkpoint paths. A
    locator `FileNotFoundError` means the input was not attached
    correctly.
+6. Confirm the pre-flight cell prints `PREFLIGHT PASSED`
+   (both short generations, the 1,024-position limit, and the
+   worst-case clamped budget). If it fails, stop and fix that
+   failure — do not let a 500-attempt cell be the first thing
+   to discover a checkpoint or context problem.
 
 **Expected runtime (estimate, not a result): ~0.5–1.5
 GPU-hours total.** Basis: the earlier estimate below of
