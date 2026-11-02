@@ -75,3 +75,34 @@ Reporting rules (from the outline): all five metrics for every
 condition x task cell, plus accuracy; multi-seed with spread for
 every headline comparison; same prompts, splits, and verifier
 across conditions.
+
+## Citation
+
+This repository does not yet have a DOI of its own. If you use this
+experiment code, please cite the underlying toolkit and the cost
+model it builds on:
+
+**tokenecon** (the toolkit; pinned in this repo at version 0.2.0)
+
+```bibtex
+@software{pandey_tokenecon_2026,
+  author = {Pandey, Karmendra},
+  title = {tokenecon},
+  doi = {10.5281/zenodo.23427025},
+  url = {https://github.com/karmendra8386/agentic-ai-token-economics},
+  year = {2026}
+}
+```
+
+**Token-Economics for Agentic AI** (the cost model)
+
+```bibtex
+@misc{pandey_tokeneconomics_2026,
+  author = {Pandey, Karmendra},
+  title = {Token-Economics for Agentic AI: A Cost Model and Tiered Routing Reference},
+  doi = {10.5281/zenodo.23195511},
+  url = {https://doi.org/10.5281/zenodo.23195511},
+  publisher = {Zenodo},
+  year = {2026}
+}
+```
